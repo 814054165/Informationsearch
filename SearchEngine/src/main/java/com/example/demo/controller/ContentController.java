@@ -2,10 +2,9 @@ package com.example.demo.controller;
 
 import com.example.demo.service.ContentService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Controller;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -16,54 +15,45 @@ public class ContentController {
     @Autowired
     private ContentService contentService;
 
-    // @GetMapping("/searchAn/{aid}")
-    // public String parsese(Model model, @PathVariable("aid") String aid) throws
-    // IOException, IOException {
-    //
-    // System.out.println(aid);
-    // List list=contentService.searchAnswer(aid);
-    // String str=list.toString();
-    // model.addAttribute("hello",list.toString());
-    // return "答案： \n"+ str;
-    // }
-
     @GetMapping("/parse/{keyword}")
-    public Boolean parse(@PathVariable("keyword") String keyword) throws IOException, IOException {
-        // String convStr="机器学习";
-        // convStr=convStr.getBytes("UTF-8").toString();
-        System.out.println(keyword);
-        // return contentService.parseContent(convStr);
+    public Boolean parse(@PathVariable("keyword") String keyword) throws IOException {
+        System.out.println("Parsing content for keyword: " + keyword);
         return contentService.parseContent(keyword);
     }
 
-    @GetMapping("/search/{keyword}/{pageNo}/{pageSize}")
-    // @CrossOrigin(origin = {"http://127.0.0.1:8080"})//添加来源地址
-    public List<Map<String, Object>> search(@PathVariable("keyword") String keyword,
-            @PathVariable("pageNo") int pageNo,
-            @PathVariable("pageSize") int pageSize) throws IOException {
-
-        List<Map<String, Object>> list = contentService.searchPage(keyword, pageNo, pageSize);
-        return list;
+    @GetMapping("/search/{keyword}/{pageNo}/{pageSize}/{type}/{sortOrder}")
+    public ResponseEntity<Map<String, Object>> search(@PathVariable("keyword") String keyword,
+                                                      @PathVariable("pageNo") int pageNo,
+                                                      @PathVariable("pageSize") int pageSize,
+                                                      @PathVariable("type") String type,
+                                                      @PathVariable("sortOrder") String sortOrder) throws IOException {
+        System.out.println("GET search called with: keyword=" + keyword + ", type=" + type + ", sortOrder=" + sortOrder + ", pageNo=" + pageNo + ", pageSize=" + pageSize);
+        Map<String, Object> result = contentService.searchPage(keyword, pageNo, pageSize, type, sortOrder);
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/writeQA")
-    public Boolean writeQA() throws IOException, IOException {
+    public Boolean writeQA() throws IOException {
+        System.out.println("Writing QA content");
         return contentService.writeQAContent();
     }
 
     @PostMapping("/query")
-    public List<Map<String, Object>> query(String keyword, int pageNo, int pageSize) throws IOException {
-
-        List<Map<String, Object>> list = contentService.searchPage(keyword, pageNo, pageSize);
-        return list;
-
+    public ResponseEntity<Map<String, Object>> query(@RequestParam String keyword,
+                                                     @RequestParam int pageNo,
+                                                     @RequestParam int pageSize,
+                                                     @RequestParam String type,
+                                                     @RequestParam(defaultValue = "") String sortOrder) throws IOException {
+        System.out.println("POST query called with: keyword=" + keyword + ", type=" + type + ", sortOrder=" + sortOrder + ", pageNo=" + pageNo);
+        Map<String, Object> result = contentService.searchPage(keyword, pageNo, pageSize, type, sortOrder);
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping("/queryse")
-    public List<Map<String, Object>> queryse(String keyword, int pageNo, int pageSize) throws IOException {
-
-        List<Map<String, Object>> list = contentService.searchQA(keyword, pageNo, pageSize);
-        return list;
-
+    public List<Map<String, Object>> queryse(@RequestParam String keyword,
+                                             @RequestParam int pageNo,
+                                             @RequestParam int pageSize) throws IOException {
+        System.out.println("POST queryse called with: keyword=" + keyword);
+        return contentService.searchQA(keyword, pageNo, pageSize);
     }
 }

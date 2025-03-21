@@ -4,6 +4,34 @@
   <meta charset="utf-8"/>
   <title>Java-ES仿京东搜索</title>
   <link rel="stylesheet" th:href="@{/css/style.css}"/>
+  <style>
+    .pagination { margin-top: 20px; text-align: center; }
+    .pagination button { margin: 0 5px; padding: 5px 10px; }
+    .pagination span { margin: 0 10px; }
+    .favorite-btn {
+      cursor: pointer;
+      font-size: 18px;
+      margin-left: 10px;
+      color: grey;
+      display: inline-block; /* 确保按钮可见 */
+      vertical-align: middle;
+    }
+    .favorite-btn.active { color: yellow; }
+    .header-extra { position: relative; }
+    .favorites-link {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      padding: 5px 10px;
+      background: #f0f0f0;
+      text-decoration: none;
+      color: #333;
+      border-radius: 3px;
+    }
+    .favorites-view { display: none; }
+    .favorites-view.active { display: block; }
+    .productStatus { display: flex; align-items: center; } /* 调整布局确保按钮对齐 */
+  </style>
 </head>
 
 <body class="pg">
@@ -14,14 +42,10 @@
     <div id="header" class=" header-list-app">
       <div class="headerLayout">
         <div class="headerCon ">
-          <!-- Logo-->
           <h1 id="mallLogo">
             <img th:src="@{/images/jdlogo.png}" alt="">
           </h1>
-
           <div class="header-extra">
-
-            <!--搜索                        <input v-model.trim="keyword" id="keyword" @keyup="getAddress">-->
             <div id="mallSearch" class="mall-search">
               <form name="searchTop" class="mallSearch-form clearfix">
                 <fieldset>
@@ -29,8 +53,7 @@
                   <div class="mallSearch-input clearfix">
                     <div class="s-combobox" id="s-combobox-685">
                       <div class="s-combobox-input-wrap">
-                        <input v-model="keyword" type="text" autocomplete="off" value="" id="mq"
-                               class="s-combobox-input" aria-haspopup="true">
+                        <input v-model="keyword" type="text" autocomplete="off" value="" id="mq" class="s-combobox-input" aria-haspopup="true">
                       </div>
                     </div>
                     <button @click.prevent="searchPage" type="submit" id="searchbtn">搜索</button>
@@ -38,33 +61,38 @@
                 </fieldset>
               </form>
               <ul class="relKeyTop">
-                <li><a>Java</a></li>
-                <li><a>Python</a></li>
-                <li><a>机器问答</a></li>
-                <li><a>信息检索</a></li>
-                <li><a>人工智能</a></li>
+                <li><a @click.prevent="searchByType('理工')">理工</a></li>
+                <li><a @click.prevent="searchByType('经管与人文')">经管与人文</a></li>
+                <li><a @click.prevent="searchByType('文化与传播')">文化与传播</a></li>
+                <li><a @click.prevent="searchByType('法律与艺术')">法律与艺术</a></li>
+                <li><a @click.prevent="searchByType('计算机与电子信息')">计算机与电子信息</a></li>
+                <li><a @click.prevent="searchByType('全部')">全部</a></li>
               </ul>
             </div>
+            <!-- 收藏按钮 -->
+            <a href="#" class="favorites-link" @click.prevent="showFavorites">我的收藏</a>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <div id="content">
+  <!-- 主界面 -->
+  <div id="content" v-show="!isFavoritesView">
     <div class="main">
-      <!-- 品牌分类 -->
       <form class="navAttrsForm">
         <div class="attrs j_NavAttrs" style="display:block">
           <div class="brandAttr j_nav_brand">
             <div class="j_Brand attr">
-              <div class="attrKey">
-                品牌
-              </div>
+              <div class="attrKey">分类</div>
               <div class="attrValues">
                 <ul class="av-collapse row-2">
-                  <li><a href="#"> 机器问答 </a></li>
-                  <li><a href="#"> 信息检索 </a></li>
+                  <li><a href="#" @click.prevent="searchByType('理工')"> 理工 </a></li>
+                  <li><a href="#" @click.prevent="searchByType('经管与人文')"> 经管与人文 </a></li>
+                  <li><a href="#" @click.prevent="searchByType('文化与传播')"> 文化与传播 </a></li>
+                  <li><a href="#" @click.prevent="searchByType('法律与艺术')"> 法律与艺术 </a></li>
+                  <li><a href="#" @click.prevent="searchByType('计算机与电子信息')"> 计算机与电子信息 </a></li>
+                  <li><a href="#" @click.prevent="searchByType('全部')"> 全部 </a></li>
                 </ul>
               </div>
             </div>
@@ -72,42 +100,69 @@
         </div>
       </form>
 
-      <!-- 排序规则 -->
       <div class="filter clearfix">
         <a class="fSort fSort-cur">综合<i class="f-ico-arrow-d"></i></a>
         <a class="fSort">人气<i class="f-ico-arrow-d"></i></a>
         <a class="fSort">新品<i class="f-ico-arrow-d"></i></a>
         <a class="fSort">销量<i class="f-ico-arrow-d"></i></a>
-        <a class="fSort">价格<i class="f-ico-triangle-mt"></i><i class="f-ico-triangle-mb"></i></a>
+        <a class="fSort" @click.prevent="sortByPrice('asc')">价格<i class="f-ico-triangle-mt"></i></a>
+        <a class="fSort" @click.prevent="sortByPrice('desc')"><i class="f-ico-triangle-mb"></i></a>
       </div>
 
-      <!-- 商品详情 -->
       <div class="view grid-nosku">
-
-        <div class="product" v-for="item in results">
+        <div class="product" v-for="item in results" :key="item.isbn">
           <div class="product-iWrap">
-            <!--商品封面-->
             <div class="productImg-wrap">
-              <a class="productImg">
-                <img :src="item.img">
-              </a>
+              <a class="productImg"><img :src="item.img"></a>
             </div>
-            <!--价格-->
-            <p class="productPrice">
-              <em>{{item.price}}</em>
-            </p>
-            <!--标题-->
-            <p class="productTitle">
-              <a v-html="item.title"></a>
-            </p>
-            <!-- 店铺名 -->
-            <div class="productShop">
-              <span>店铺： 实践课 </span>
-            </div>
-            <!-- 成交信息 -->
+            <p class="productPrice"><em>{{item.price}}</em></p>
+            <p class="productTitle"><a v-html="item.title"></a></p>
+            <p class="productType"><span>类型：{{item.type}}</span></p>
+            <div class="productShop"><span>店铺： 实践课 </span></div>
             <p class="productStatus">
               <span>月成交<em>999笔</em></span>
               <span>评价 <a>3</a></span>
+              <!-- 收藏按钮，确保在评价右侧 -->
+              <span
+                      class="favorite-btn"
+                      :class="{ 'active': isFavorited(item.isbn) }"
+                      @click="toggleFavorite(item)"
+              >★</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pagination">
+        <button @click="prevPage" :disabled="currentPage === 1">上一页</button>
+        <span>第 {{ currentPage }} 页 / 共 {{ totalPages }} 页 (共 {{ totalItems }} 本书)</span>
+        <button @click="nextPage" :disabled="currentPage === totalPages">下一页</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 收藏界面 -->
+  <div id="content" class="favorites-view" :class="{ 'active': isFavoritesView }">
+    <div class="main">
+      <h2>我的收藏</h2>
+      <button @click="backToMain">返回</button>
+      <div class="view grid-nosku">
+        <div class="product" v-for="item in favorites" :key="item.isbn">
+          <div class="product-iWrap">
+            <div class="productImg-wrap">
+              <a class="productImg"><img :src="item.img"></a>
+            </div>
+            <p class="productPrice"><em>{{item.price}}</em></p>
+            <p class="productTitle"><a v-html="item.title"></a></p>
+            <p class="productType"><span>类型：{{item.type}}</span></p>
+            <div class="productShop"><span>店铺： 实践课 </span></div>
+            <p class="productStatus">
+              <span>月成交<em>999笔</em></span>
+              <span>评价 <a>3</a></span>
+              <span
+                      class="favorite-btn active"
+                      @click="toggleFavorite(item)"
+              >★</span>
             </p>
           </div>
         </div>
@@ -115,51 +170,108 @@
     </div>
   </div>
 </div>
-</div>
 </body>
 
 <script src="./js/vue.min.js"></script>
 <script src="./js/axios.min.js"></script>
 <script type="text/javascript">
   var vm = new Vue({
-    el:'#app',
-    data:{
-      keyword:"",  //搜索关键字
-      s1:"localhost:8080/search/java/1/10",
-      address:"",
-      results:[]  //搜索结果
+    el: '#app',
+    data: {
+      keyword: "",
+      currentType: "全部",
+      results: [],
+      sortOrder: '',
+      currentPage: 1,
+      pageSize: 20,
+      totalItems: 0,
+      totalPages: 0,
+      favorites: [],
+      isFavoritesView: false
     },
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8'
+    mounted() {
+      this.loadFavorites();
     },
-    methods:{
-      searchPage(){
-        var keyword = this.keyword.toString();
-        console.info(keyword);
+    methods: {
+      searchPage() {
+        console.log('Search page triggered with keyword:', this.keyword);
+        this.currentPage = 1;
+        this.searchWithParams(this.keyword, this.currentType, this.sortOrder);
+      },
+      searchByType(type) {
+        console.log('Search by type triggered with type:', type);
+        this.currentType = type;
+        this.sortOrder = '';
+        this.currentPage = 1;
+        this.searchWithParams(this.keyword, type, '');
+      },
+      sortByPrice(order) {
+        console.log('Sort entire ' + this.currentType + ' category by price with order:', order);
+        this.sortOrder = order;
+        this.currentPage = 1;
+        this.searchWithParams(this.keyword, this.currentType, order);
+      },
+      prevPage() {
+        if (this.currentPage > 1) {
+          this.currentPage--;
+          this.searchWithParams(this.keyword, this.currentType, this.sortOrder);
+        }
+      },
+      nextPage() {
+        if (this.currentPage < this.totalPages) {
+          this.currentPage++;
+          this.searchWithParams(this.keyword, this.currentType, this.sortOrder);
+        }
+      },
+      searchWithParams(keyword, type, sortOrder) {
+        console.log('Searching with params:', { keyword, type, sortOrder, pageNo: this.currentPage });
         axios.request({
-            method: "POST",
-            url:"http://localhost:8080/query",
-            params:{
-              keyword:this.keyword,
-              pageNo:1,
-              pageSize:20
-            }
-        }).then(response=>{
-          this.results=response.data;
-          //this.address=response.data.toString();
-        })
-        //axios.get("http://localhost:8080/search/"+keyword+"/1/20").then(response=>{
-          //this.results=response.data;
-          //this.address=response.data.toString();
-
-        //axios.get("localhost:8080/search/"+keyword+"/1/10").then(response=>{
-          //console.log(response.data)
-          //this.results = res.data;
-          //this.address=response.toString();
-        //})
+          method: "POST",
+          url: "http://localhost:8080/query",
+          params: {
+            keyword: keyword,
+            pageNo: this.currentPage,
+            pageSize: this.pageSize,
+            type: type,
+            sortOrder: sortOrder
+          }
+        }).then(response => {
+          console.log('Received response:', response.data);
+          this.results = response.data.results;
+          this.totalItems = response.data.total;
+          this.totalPages = Math.ceil(this.totalItems / this.pageSize);
+        }).catch(error => {
+          console.error('Error fetching data:', error);
+        });
+      },
+      toggleFavorite(item) {
+        const isbn = item.isbn;
+        const index = this.favorites.findIndex(fav => fav.isbn === isbn);
+        if (index === -1) {
+          this.favorites.push(item);
+          console.log('Added to favorites:', item.title);
+        } else {
+          this.favorites.splice(index, 1);
+          console.log('Removed from favorites:', item.title);
+        }
+        localStorage.setItem('favorites', JSON.stringify(this.favorites));
+      },
+      isFavorited(isbn) {
+        return this.favorites.some(fav => fav.isbn === isbn);
+      },
+      loadFavorites() {
+        const savedFavorites = localStorage.getItem('favorites');
+        if (savedFavorites) {
+          this.favorites = JSON.parse(savedFavorites);
+        }
+      },
+      showFavorites() {
+        this.isFavoritesView = true;
+      },
+      backToMain() {
+        this.isFavoritesView = false;
       }
     }
-  })
+  });
 </script>
-
 </html>

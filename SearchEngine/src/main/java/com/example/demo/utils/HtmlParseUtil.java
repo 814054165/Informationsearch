@@ -28,7 +28,7 @@ public class HtmlParseUtil {
         keywords = parts[1];
         String url = "http://www.tup.tsinghua.edu.cn/booksCenter/booklist.html?keyword="
                 + java.net.URLEncoder.encode(keywords, "UTF-8") +
-                "&keytm=8D383A229485916C8F";
+                "&keytm=8D383A2C9785916B86";
         System.out.println("请求URL: " + url);
 
         // 解析网页 (Jsoup返回Document就是浏览器Document对象)
