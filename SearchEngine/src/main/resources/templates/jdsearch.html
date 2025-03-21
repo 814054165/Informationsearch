@@ -66,6 +66,7 @@
                 <li><a @click.prevent="searchByType('文化与传播')">文化与传播</a></li>
                 <li><a @click.prevent="searchByType('法律与艺术')">法律与艺术</a></li>
                 <li><a @click.prevent="searchByType('计算机与电子信息')">计算机与电子信息</a></li>
+                <li><a @click.prevent="searchByType('生物与医学')">生物与医学</a></li>
                 <li><a @click.prevent="searchByType('全部')">全部</a></li>
               </ul>
             </div>
@@ -92,6 +93,7 @@
                   <li><a href="#" @click.prevent="searchByType('文化与传播')"> 文化与传播 </a></li>
                   <li><a href="#" @click.prevent="searchByType('法律与艺术')"> 法律与艺术 </a></li>
                   <li><a href="#" @click.prevent="searchByType('计算机与电子信息')"> 计算机与电子信息 </a></li>
+                  <li><a href="#" @click.prevent="searchByType('生物与医学')"> 生物与医学 </a></li>
                   <li><a href="#" @click.prevent="searchByType('全部')"> 全部 </a></li>
                 </ul>
               </div>
@@ -191,6 +193,8 @@
     },
     mounted() {
       this.loadFavorites();
+      // 初始化加载全部书籍
+      this.searchWithParams(this.keyword, this.currentType, this.sortOrder);
     },
     methods: {
       searchPage() {
