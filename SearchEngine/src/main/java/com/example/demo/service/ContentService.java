@@ -121,7 +121,6 @@ public class ContentService {
         SearchRequest searchRequest = new SearchRequest("tsinghua_books");
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
 
-        // 分页设置
         sourceBuilder.from((pageNo - 1) * pageSize).size(pageSize);
 
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
@@ -133,7 +132,6 @@ public class ContentService {
         }
 
         if (type != null && !"全部".equals(type)) {
-            // 使用type.keyword进行精确匹配
             TermQueryBuilder typeQuery = QueryBuilders.termQuery("type.keyword", type);
             boolQuery.must(typeQuery);
             System.out.println("Added type filter on type.keyword: " + type);
@@ -143,7 +141,6 @@ public class ContentService {
 
         sourceBuilder.query(boolQuery);
 
-        // 对整个类别按价格排序，使用scriptSort确保数值排序
         if (sortOrder != null && !sortOrder.isEmpty()) {
             SortOrder order = "asc".equalsIgnoreCase(sortOrder) ? SortOrder.ASC : SortOrder.DESC;
             System.out.println("Applying price sort to entire " + type + " category with order: " + order);
@@ -177,10 +174,8 @@ public class ContentService {
                 list.add(sourceMap);
             }
 
-            // 获取总数量
             long total = searchResponse.getHits().getTotalHits().value;
 
-            // 返回结果和总数
             Map<String, Object> result = new HashMap<>();
             result.put("results", list);
             result.put("total", total);
@@ -304,5 +299,61 @@ public class ContentService {
         bulk = client.bulk(request, RequestOptions.DEFAULT);
 
         return !bulk.hasFailures();
+    }
+
+    public void saveSearchHistory(String userId, String keyword) throws IOException {
+        System.out.println("Saving search history - userId: " + userId + ", keyword: " + keyword);
+        SearchRequest searchRequest = new SearchRequest("search_history");
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        TermQueryBuilder termQuery = QueryBuilders.termQuery("userId", userId);
+        sourceBuilder.query(termQuery);
+        sourceBuilder.size(1);
+        searchRequest.source(sourceBuilder);
+
+        SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
+        List<String> history;
+
+        if (searchResponse.getHits().getTotalHits().value > 0) {
+            Map<String, Object> existingDoc = searchResponse.getHits().getHits()[0].getSourceAsMap();
+            history = (List<String>) existingDoc.get("history");
+            if (!history.contains(keyword)) {
+                history.add(0, keyword);
+                if (history.size() > 10) history.remove(history.size() - 1);
+            }
+        } else {
+            history = new ArrayList<>();
+            history.add(keyword);
+        }
+
+        Map<String, Object> doc = new HashMap<>();
+        doc.put("userId", userId);
+        doc.put("history", history);
+        doc.put("timestamp", System.currentTimeMillis());
+
+        IndexRequest indexRequest = new IndexRequest("search_history")
+                .id(userId)
+                .source(doc, XContentType.JSON);
+        client.index(indexRequest, RequestOptions.DEFAULT);
+        System.out.println("Search history saved: " + history);
+    }
+
+    public List<String> getSearchHistory(String userId) throws IOException {
+        System.out.println("Fetching search history for userId: " + userId);
+        SearchRequest searchRequest = new SearchRequest("search_history");
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        TermQueryBuilder termQuery = QueryBuilders.termQuery("userId", userId);
+        sourceBuilder.query(termQuery);
+        sourceBuilder.size(1);
+        searchRequest.source(sourceBuilder);
+
+        SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
+        if (searchResponse.getHits().getTotalHits().value > 0) {
+            Map<String, Object> doc = searchResponse.getHits().getHits()[0].getSourceAsMap();
+            List<String> history = (List<String>) doc.get("history");
+            System.out.println("Found search history: " + history);
+            return history;
+        }
+        System.out.println("No search history found for userId: " + userId);
+        return new ArrayList<>();
     }
 }

@@ -13,7 +13,7 @@
       font-size: 18px;
       margin-left: 10px;
       color: grey;
-      display: inline-block; /* 确保按钮可见 */
+      display: inline-block;
       vertical-align: middle;
     }
     .favorite-btn.active { color: yellow; }
@@ -30,7 +30,25 @@
     }
     .favorites-view { display: none; }
     .favorites-view.active { display: block; }
-    .productStatus { display: flex; align-items: center; } /* 调整布局确保按钮对齐 */
+    .productStatus { display: flex; align-items: center; }
+    .history-item, .category-item {
+      display: inline-block;
+      padding: 0px 10px;
+      cursor: pointer;
+      text-align: center; /* 使列表内容水平居中 */
+    }
+    .history-item.active, .category-item.active {
+      color: #e4393c;
+      font-weight: bold;
+    }
+    .relKeyTop {
+      display: block !important; /* 确保历史记录列表可见 */
+      margin-top: 5px;
+    }
+    .fSort-cur {
+      color: #e4393c; /* 高亮颜色，与.history-item.active一致 */
+      font-weight: bold;
+    }
   </style>
 </head>
 
@@ -46,7 +64,7 @@
             <img th:src="@{/images/jdlogo.png}" alt="">
           </h1>
           <div class="header-extra">
-            <div id="mallSearch" class="mall-search">
+            <div id="mallSearch" class="mall-search" v-show="!isFavoritesView">
               <form name="searchTop" class="mallSearch-form clearfix">
                 <fieldset>
                   <legend>天猫搜索</legend>
@@ -61,16 +79,13 @@
                 </fieldset>
               </form>
               <ul class="relKeyTop">
-                <li><a @click.prevent="searchByType('理工')">理工</a></li>
-                <li><a @click.prevent="searchByType('经管与人文')">经管与人文</a></li>
-                <li><a @click.prevent="searchByType('文化与传播')">文化与传播</a></li>
-                <li><a @click.prevent="searchByType('法律与艺术')">法律与艺术</a></li>
-                <li><a @click.prevent="searchByType('计算机与电子信息')">计算机与电子信息</a></li>
-                <li><a @click.prevent="searchByType('生物与医学')">生物与医学</a></li>
-                <li><a @click.prevent="searchByType('全部')">全部</a></li>
+                <li v-for="history in searchHistory" :key="history">
+                  <a class="history-item"
+                     :class="{ 'active': keyword === history }"
+                     @click.prevent="searchFromHistory(history)">{{ history }}</a>
+                </li>
               </ul>
             </div>
-            <!-- 收藏按钮 -->
             <a href="#" class="favorites-link" @click.prevent="showFavorites">我的收藏</a>
           </div>
         </div>
@@ -79,7 +94,7 @@
   </div>
 
   <!-- 主界面 -->
-  <div id="content" v-show="!isFavoritesView">
+  <div _id="content" v-show="!isFavoritesView">
     <div class="main">
       <form class="navAttrsForm">
         <div class="attrs j_NavAttrs" style="display:block">
@@ -88,13 +103,13 @@
               <div class="attrKey">分类</div>
               <div class="attrValues">
                 <ul class="av-collapse row-2">
-                  <li><a href="#" @click.prevent="searchByType('理工')"> 理工 </a></li>
-                  <li><a href="#" @click.prevent="searchByType('经管与人文')"> 经管与人文 </a></li>
-                  <li><a href="#" @click.prevent="searchByType('文化与传播')"> 文化与传播 </a></li>
-                  <li><a href="#" @click.prevent="searchByType('法律与艺术')"> 法律与艺术 </a></li>
-                  <li><a href="#" @click.prevent="searchByType('计算机与电子信息')"> 计算机与电子信息 </a></li>
-                  <li><a href="#" @click.prevent="searchByType('生物与医学')"> 生物与医学 </a></li>
-                  <li><a href="#" @click.prevent="searchByType('全部')"> 全部 </a></li>
+                  <li><a href="#" class="category-item" :class="{ 'active': currentType === '理工' }" @click.prevent="searchByType('理工')"> 理工 </a></li>
+                  <li><a href="#" class="category-item" :class="{ 'active': currentType === '经管与人文' }" @click.prevent="searchByType('经管与人文')"> 经管与人文 </a></li>
+                  <li><a href="#" class="category-item" :class="{ 'active': currentType === '文化与传播' }" @click.prevent="searchByType('文化与传播')"> 文化与传播 </a></li>
+                  <li><a href="#" class="category-item" :class="{ 'active': currentType === '法律与艺术' }" @click.prevent="searchByType('法律与艺术')"> 法律与艺术 </a></li>
+                  <li><a href="#" class="category-item" :class="{ 'active': currentType === '计算机与电子信息' }" @click.prevent="searchByType('计算机与电子信息')"> 计算机与电子信息 </a></li>
+                  <li><a href="#" class="category-item" :class="{ 'active': currentType === '生物与医学' }" @click.prevent="searchByType('生物与医学')"> 生物与医学 </a></li>
+                  <li><a href="#" class="category-item" :class="{ 'active': currentType === '全部' }" @click.prevent="searchByType('全部')"> 全部 </a></li>
                 </ul>
               </div>
             </div>
@@ -103,12 +118,8 @@
       </form>
 
       <div class="filter clearfix">
-        <a class="fSort fSort-cur">综合<i class="f-ico-arrow-d"></i></a>
-        <a class="fSort">人气<i class="f-ico-arrow-d"></i></a>
-        <a class="fSort">新品<i class="f-ico-arrow-d"></i></a>
-        <a class="fSort">销量<i class="f-ico-arrow-d"></i></a>
-        <a class="fSort" @click.prevent="sortByPrice('asc')">价格<i class="f-ico-triangle-mt"></i></a>
-        <a class="fSort" @click.prevent="sortByPrice('desc')"><i class="f-ico-triangle-mb"></i></a>
+        <a class="fSort" :class="{ 'fSort-cur': sortOrder === 'asc' }" @click.prevent="sortByPrice('asc')">价格<i class="f-ico-triangle-mt"></i></a>
+        <a class="fSort" :class="{ 'fSort-cur': sortOrder === 'desc' }" @click.prevent="sortByPrice('desc')"><i class="f-ico-triangle-mb"></i></a>
       </div>
 
       <div class="view grid-nosku">
@@ -124,12 +135,7 @@
             <p class="productStatus">
               <span>月成交<em>999笔</em></span>
               <span>评价 <a>3</a></span>
-              <!-- 收藏按钮，确保在评价右侧 -->
-              <span
-                      class="favorite-btn"
-                      :class="{ 'active': isFavorited(item.isbn) }"
-                      @click="toggleFavorite(item)"
-              >★</span>
+              <span class="favorite-btn" :class="{ 'active': isFavorited(item.isbn) }" @click="toggleFavorite(item)">★</span>
             </p>
           </div>
         </div>
@@ -161,10 +167,7 @@
             <p class="productStatus">
               <span>月成交<em>999笔</em></span>
               <span>评价 <a>3</a></span>
-              <span
-                      class="favorite-btn active"
-                      @click="toggleFavorite(item)"
-              >★</span>
+              <span class="favorite-btn active" @click="toggleFavorite(item)">★</span>
             </p>
           </div>
         </div>
@@ -189,18 +192,57 @@
       totalItems: 0,
       totalPages: 0,
       favorites: [],
-      isFavoritesView: false
+      isFavoritesView: false,
+      searchHistory: [],
+      userId: "user123",
+      searchTimeout: null // 用于防抖的定时器
     },
     mounted() {
+      console.log('Vue mounted, loading initial data...');
       this.loadFavorites();
-      // 初始化加载全部书籍
+      this.loadSearchHistoryFromServer();
       this.searchWithParams(this.keyword, this.currentType, this.sortOrder);
     },
     methods: {
+      debouncedSearch() {
+          // 清除之前的定时器
+          if (this.searchTimeout) {
+            clearTimeout(this.searchTimeout);
+          }
+          // 设置新的定时器，300ms后执行搜索
+          this.searchTimeout = setTimeout(() => {
+            this.searchPage();
+          }, 300);
+        },
       searchPage() {
         console.log('Search page triggered with keyword:', this.keyword);
+        if (this.keyword && this.keyword.trim()) {
+          // 先保存搜索历史
+          axios.post('http://localhost:8080/saveSearchHistory', null, {
+            params: {
+              userId: this.userId,
+              keyword: this.keyword.trim()
+            }
+          }).then(() => {
+            console.log('Search history saved for keyword:', this.keyword);
+            // 保存成功后立即加载最新的历史记录
+            this.loadSearchHistoryFromServer();
+          }).catch(error => {
+            console.error('Error saving search history:', error.response ? error.response.data : error.message);
+          });
+
+          // 执行搜索
+          this.currentPage = 1;
+          this.searchWithParams(this.keyword, this.currentType, this.sortOrder);
+        } else {
+          console.log('Keyword is empty, skipping save');
+        }
+      },
+      searchFromHistory(history) {
+        console.log('Searching from history:', history);
+        this.keyword = history;
         this.currentPage = 1;
-        this.searchWithParams(this.keyword, this.currentType, this.sortOrder);
+        this.searchWithParams(history, this.currentType, this.sortOrder);
       },
       searchByType(type) {
         console.log('Search by type triggered with type:', type);
@@ -240,12 +282,12 @@
             sortOrder: sortOrder
           }
         }).then(response => {
-          console.log('Received response:', response.data);
+          console.log('Received search response:', response.data);
           this.results = response.data.results;
           this.totalItems = response.data.total;
           this.totalPages = Math.ceil(this.totalItems / this.pageSize);
         }).catch(error => {
-          console.error('Error fetching data:', error);
+          console.error('Error fetching search data:', error.response ? error.response.data : error.message);
         });
       },
       toggleFavorite(item) {
@@ -267,7 +309,23 @@
         const savedFavorites = localStorage.getItem('favorites');
         if (savedFavorites) {
           this.favorites = JSON.parse(savedFavorites);
+          console.log('Loaded favorites:', this.favorites);
         }
+      },
+      loadSearchHistoryFromServer() {
+        console.log('Loading search history for user:', this.userId);
+        axios.get('http://localhost:8080/getSearchHistory', {
+          params: { userId: this.userId }
+        }).then(response => {
+          console.log('Raw response from getSearchHistory:', response);
+          console.log('Search history response data:', response.data);
+          this.searchHistory = response.data.history ? response.data.history.slice(0, 10) : [];
+          console.log('Updated searchHistory:', this.searchHistory);
+        }).catch(error => {
+          console.error('Error loading search history:', error.response ? error.response.data : error.message);
+          this.searchHistory = [];
+          console.log('Set searchHistory to empty due to error:', this.searchHistory);
+        });
       },
       showFavorites() {
         this.isFavoritesView = true;

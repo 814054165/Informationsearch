@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -55,5 +56,22 @@ public class ContentController {
                                              @RequestParam int pageSize) throws IOException {
         System.out.println("POST queryse called with: keyword=" + keyword);
         return contentService.searchQA(keyword, pageNo, pageSize);
+    }
+
+    @PostMapping("/saveSearchHistory")
+    public ResponseEntity<Void> saveSearchHistory(@RequestParam String userId, @RequestParam String keyword) throws IOException {
+        System.out.println("Saving search history for user: " + userId + ", keyword: " + keyword);
+        contentService.saveSearchHistory(userId, keyword);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/getSearchHistory")
+    public ResponseEntity<Map<String, List<String>>> getSearchHistory(@RequestParam String userId) throws IOException {
+        System.out.println("Getting search history for user: " + userId);
+        List<String> history = contentService.getSearchHistory(userId);
+        Map<String, List<String>> response = new HashMap<>();
+        response.put("history", history);
+        System.out.println("Returning search history: " + history);
+        return ResponseEntity.ok(response);
     }
 }
