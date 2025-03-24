@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8"/>
+  <title>Java-全文搜索</title>
+  <link rel="stylesheet" th:href="@{/css/stylese.css}"/>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #fff;
+    }
+    .header {
+      padding: 20px;
+      text-align: center;
+      border-bottom: 1px solid #eee;
+      transition: all 0.3s ease;
+    }
+    .header.search-mode {
+      text-align: left;
+      padding: 10px 20px;
+    }
+    .logo {
+      margin-bottom: 30px;
+      transition: all 0.3s ease;
+    }
+    .logo.search-mode {
+      margin-bottom: 10px;
+    }
+    .logo img {
+      max-width: 200px;
+      height: auto;
+      transition: all 0.3s ease;
+    }
+    .logo.search-mode img {
+      max-width: 100px;
+    }
+    .search-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      transition: all 0.3s ease;
+    }
+    .search-container.search-mode {
+      max-width: 100%;
+      padding: 0;
+      margin: 0;
+    }
+    .search-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .search-wrapper.search-mode {
+      justify-content: flex-start;
+      margin: 0;
+    }
+    .search-box {
+      display: flex;
+      border: 1px solid #dfe1e5;
+      border-radius: 24px;
+      padding: 8px 16px;
+      margin: 20px auto;
+      width: 584px;
+      box-shadow: 0 1px 6px rgba(32,33,36,.28);
+      transition: all 0.3s ease;
+      align-items: center;
+    }
+    .search-box.search-mode {
+      margin: 0;
+      margin-left: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      border: 1px solid #dfe1e5;
+      max-width: 600px;
+      background-color: #fff;
+    }
+    .search-box:hover {
+      box-shadow: 0 1px 6px rgba(32,33,36,.28);
+      border-color: rgba(223,225,229,0);
+    }
+    .search-box.search-mode:hover {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      border-color: #dfe1e5;
+    }
+    .search-input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: 16px;
+      padding: 8px;
+      margin-right: 8px;
+    }
+    .search-button {
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .search-button:hover {
+      background-color: #357abd;
+    }
+    .advanced-search-button {
+      background-color: #f8f9fa;
+      color: #4285f4;
+      border: 1px solid #4285f4;
+      border-radius: 4px;
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-right: 10px;
+      white-space: nowrap;
+    }
+    .advanced-search-button:hover {
+      background-color: #e8f0fe;
+    }
+    .modal {
+      display: block;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      z-index: 1000;
+    }
+    .modal-content {
+      position: relative;
+      background-color: #fff;
+      margin: 15% auto;
+      padding: 20px;
+      width: 50%;
+      max-width: 500px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      animation: modalFadeIn 0.3s ease;
+    }
+    @keyframes modalFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .modal-title {
+      font-size: 20px;
+      font-weight: bold;
+      color: #202124;
+    }
+    .close-button {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #70757a;
+    }
+    .search-form {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .form-label {
+      font-size: 14px;
+      color: #202124;
+    }
+    .form-input {
+      padding: 8px 12px;
+      border: 1px solid #dfe1e5;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .form-input:focus {
+      outline: none;
+      border-color: #4285f4;
+    }
+    .modal-buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .cancel-button {
+      background-color: #f8f9fa;
+      color: #5f6368;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      padding: 8px 16px;
+      cursor: pointer;
+    }
+    .search-submit-button {
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      cursor: pointer;
+    }
+    .results-container {
+      max-width: 652px;
+      margin: 20px auto;
+      padding: 0 20px;
+      transition: all 0.3s ease;
+    }
+    .results-container.search-mode {
+      max-width: 100%;
+      margin: 0;
+      padding: 0 20px;
+    }
+    .result-item {
+      margin-bottom: 30px;
+      padding: 10px;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    .result-item:hover {
+      background-color: #f8f9fa;
+    }
+    .result-title {
+      color: #1a0dab;
+      font-size: 20px;
+      margin-bottom: 5px;
+      text-decoration: none;
+      display: block;
+    }
+    .result-title:hover {
+      text-decoration: underline;
+    }
+    .result-url {
+      color: #006621;
+      font-size: 14px;
+      margin-bottom: 5px;
+    }
+    .result-snippet {
+      color: #545454;
+      font-size: 14px;
+      line-height: 1.58;
+    }
+    .result-domain {
+      color: #70757a;
+      font-size: 12px;
+      margin-top: 5px;
+    }
+    .search-mode .result-item {
+      margin-bottom: 20px;
+      padding: 0;
+      border-radius: 0;
+    }
+    .highlight {
+      color: #f57c00;
+      font-weight: bold;
+    }
+    .highlight-or {
+      color: #34a853;
+      font-weight: bold;
+    }
+    .result-score {
+      display: inline-block;
+      background-color: #f1f3f4;
+      color: #5f6368;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      margin-left: 10px;
+      vertical-align: middle;
+    }
+    .result-score.high {
+      background-color: #e6f4ea;
+      color: #137333;
+    }
+    .result-score.medium {
+      background-color: #fef7e0;
+      color: #b95000;
+    }
+    .result-score.low {
+      background-color: #fce8e6;
+      color: #c5221f;
+    }
+    .pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 20px 0;
+      gap: 8px;
+    }
+    .pagination button {
+      padding: 8px 12px;
+      border: 1px solid #dfe1e5;
+      background-color: #fff;
+      color: #4285f4;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .pagination button:hover {
+      background-color: #f8f9fa;
+      border-color: #4285f4;
+    }
+    .pagination button.active {
+      background-color: #4285f4;
+      color: #fff;
+      border-color: #4285f4;
+    }
+    .pagination .ellipsis {
+      padding: 8px 12px;
+      color: #70757a;
+    }
+    .pagination .nav-button {
+      padding: 8px 12px;
+      border: 1px solid #dfe1e5;
+      background-color: #fff;
+      color: #4285f4;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .pagination .nav-button:hover {
+      background-color: #f8f9fa;
+      border-color: #4285f4;
+    }
+    .pagination .nav-button:disabled {
+      color: #70757a;
+      cursor: not-allowed;
+      background-color: #f8f9fa;
+      border-color: #dfe1e5;
+    }
+    .search-type-select {
+      padding: 8px 12px;
+      border: 1px solid #dfe1e5;
+      border-radius: 4px;
+      background-color: #fff;
+      color: #202124;
+      font-size: 14px;
+      cursor: pointer;
+      height: 40px;
+      min-width: 120px;
+      outline: none;
+    }
+    .search-type-select:hover {
+      border-color: #4285f4;
+    }
+    .search-type-select:focus {
+      border-color: #4285f4;
+      box-shadow: 0 0 0 2px rgba(66,133,244,0.2);
+    }
+    .answer-id {
+      color: #1a0dab;
+      font-size: 18px;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    .answer-content {
+      color: #545454;
+      font-size: 16px;
+      line-height: 1.6;
+      margin: 10px 0;
+      white-space: pre-wrap;
+    }
+    .answer-type {
+      color: #70757a;
+      font-size: 14px;
+      margin-top: 5px;
+      font-style: italic;
+    }
+  </style>
+</head>
+
+<body>
+<div id="app" :class="{'search-mode': hasSearched}">
+  <div class="header" :class="{'search-mode': hasSearched}">
+    <div class="logo" :class="{'search-mode': hasSearched}">
+      <img th:src="@{/images/selogo.png}" alt="Logo">
+    </div>
+    <div class="search-container" :class="{'search-mode': hasSearched}">
+      <div class="search-wrapper" :class="{'search-mode': hasSearched}">
+        <select v-model="searchType" class="search-type-select">
+          <option value="question">by question</option>
+          <option value="answer">by answer</option>
+        </select>
+        <div class="search-box" :class="{'search-mode': hasSearched}">
+          <button @click.prevent="showAdvancedSearch" class="advanced-search-button">高级搜索</button>
+          <input v-model="keyword" 
+                 type="text" 
+                 class="search-input" 
+                 placeholder="输入搜索关键词"
+                 @keyup.enter="handleEnterKey">
+          <button @click.prevent="searchPage(true)" class="search-button">搜索</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 高级搜索弹窗 -->
+  <div class="modal" v-show="showModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span class="modal-title">高级搜索</span>
+        <button class="close-button" @click="closeModal">&times;</button>
+      </div>
+      <div class="search-form">
+        <div class="form-group">
+          <label class="form-label">全部关键词（AND）</label>
+          <input type="text" class="form-input" v-model="advancedSearch.allKeywords" placeholder="输入所有必须包含的关键词，用空格分隔" @keyup.enter="advancedSearchSubmit">
+        </div>
+        <div class="form-group">
+          <label class="form-label">至少包含一个关键词（OR）</label>
+          <input type="text" class="form-input" v-model="advancedSearch.orKeywords" placeholder="输入至少包含一个的关键词，用空格分隔" @keyup.enter="advancedSearchSubmit">
+        </div>
+        <div class="form-group">
+          <label class="form-label">不包含的关键词（NOT）</label>
+          <input type="text" class="form-input" v-model="advancedSearch.notKeywords" placeholder="输入不包含的关键词，用空格分隔" @keyup.enter="advancedSearchSubmit">
+        </div>
+        <div class="modal-buttons">
+          <button class="cancel-button" @click="closeModal">取消</button>
+          <button class="search-submit-button" @click="advancedSearchSubmit">搜索</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-container" :class="{'search-mode': hasSearched}" v-show="resultType === 'question'">
+    <!-- 问题搜索结果 -->
+    <div v-if="resultType === 'question'"
+         v-for="(item,i) in results" 
+         class="result-item"
+         @click="searchId(item.qid)">
+      <div class="result-header">
+        <a class="result-title" v-html="highlightText(item.qzh)"></a>
+        <span class="result-score" :class="getScoreClass(item.score)">{{item.score}}分</span>
+      </div>
+      <div class="result-url" v-html="highlightText(item.qid)"></div>
+      <div class="result-snippet" v-html="highlightText(item.qen)"></div>
+      <div class="result-domain">{{item.qdomain}}</div>
+    </div>
+  </div>
+    
+  <!-- 答案搜索结果 -->
+  <div v-show="resultType === 'answer'" v-for="(item,i) in results" class="result-item" @click="searchAnswerId(item.aid)">
+    <div class="result-header">
+      <span class="answer-id">答案序号：{{item.aid}}</span>
+      <span class="result-score" :class="getScoreClass(item.score)">{{item.score}}分</span>
+    </div>
+    <div class="answer-content" v-html="highlightText(item.azh)"></div>
+    <div class="answer-type">答案类型：{{item.atype || '未分类'}}</div>
+  </div>
+
+  <!-- 修改分页控件 -->
+  <div class="pagination" v-if="totalPages > 1">
+    <button class="nav-button" 
+            @click="changePage(currentPage - 1)" 
+            :disabled="currentPage === 1">
+      上一页
+    </button>
+    
+    <template v-for="page in displayedPages">
+      <button v-if="page !== '...'" 
+              @click="changePage(page)" 
+              :key="page"
+              :class="{'active': currentPage === page}">
+        {{ page }}
+      </button>
+      <span v-else 
+            :key="'ellipsis-' + page" 
+            class="ellipsis">...</span>
+    </template>
+    
+    <button class="nav-button" 
+            @click="changePage(currentPage + 1)" 
+            :disabled="currentPage === totalPages">
+      下一页
+    </button>
+  </div>
+</div>
+
+<script src="./js/vue.min.js"></script>
+<script src="./js/axios.min.js"></script>
+<script type="text/javascript">
+  var vm = new Vue({
+    el:'#app',
+    data:{
+      keyword:"",
+      results:[],
+      hasSearched: false,
+      currentPage: 1,
+      pageSize: 10,
+      totalResults: 0,
+      showModal: false,
+      searchType: "question",
+      resultType: "question",
+      advancedSearch: {
+        allKeywords: "",
+        orKeywords: "",
+        notKeywords: ""
+      }
+    },
+    computed: {
+      totalPages() {
+        return Math.ceil(this.totalResults / this.pageSize);
+      },
+      displayedPages() {
+        const pages = [];
+        const maxVisiblePages = 7;
+        const halfMaxVisiblePages = Math.floor(maxVisiblePages / 2);
+        
+        if (this.totalPages <= maxVisiblePages) {
+          // 如果总页数小于等于最大可见页数，显示所有页码
+          for (let i = 1; i <= this.totalPages; i++) {
+            pages.push(i);
+          }
+        } else {
+          // 始终显示第一页
+          pages.push(1);
+          
+          if (this.currentPage > halfMaxVisiblePages + 1) {
+            pages.push('...');
+          }
+          
+          // 计算要显示的页码范围
+          let startPage = Math.max(2, this.currentPage - halfMaxVisiblePages);
+          let endPage = Math.min(this.totalPages - 1, this.currentPage + halfMaxVisiblePages);
+          
+          // 调整范围以确保显示固定数量的页码
+          if (this.currentPage <= halfMaxVisiblePages + 1) {
+            startPage = 2;
+            endPage = maxVisiblePages - 2;
+          } else if (this.currentPage >= this.totalPages - halfMaxVisiblePages) {
+            startPage = this.totalPages - maxVisiblePages + 2;
+            endPage = this.totalPages - 1;
+          }
+          
+          // 添加页码
+          for (let i = startPage; i <= endPage; i++) {
+            pages.push(i);
+          }
+          
+          // 添加省略号
+          if (this.currentPage < this.totalPages - halfMaxVisiblePages) {
+            pages.push('...');
+          }
+          
+          // 始终显示最后一页
+          pages.push(this.totalPages);
+        }
+        
+        return pages;
+      }
+    },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8'
+    },
+    methods:{
+      getScoreClass(score) {
+        const numScore = parseFloat(score);
+        if (numScore >= 80) return 'high';
+        if (numScore >= 60) return 'medium';
+        return 'low';
+      },
+      highlightText(text) {
+        if (!text) return '';
+        
+        // 获取所有需要高亮的关键词
+        const allKeywords = this.advancedSearch.allKeywords ? this.advancedSearch.allKeywords.split(' ') : [];
+        const orKeywords = this.advancedSearch.orKeywords ? this.advancedSearch.orKeywords.split(' ') : [];
+        const notKeywords = this.advancedSearch.notKeywords ? this.advancedSearch.notKeywords.split(' ') : [];
+        
+        // 如果没有高级搜索关键词，则使用普通搜索关键词
+        if (allKeywords.length === 0 && orKeywords.length === 0 && notKeywords.length === 0) {
+          if (!this.keyword) return text;
+          const keywords = this.keyword.split('');
+          let result = text;
+          keywords.forEach(keyword => {
+            if (keyword.trim()) {
+              const regex = new RegExp(keyword, 'gi');
+              result = result.replace(regex, match => `<span class="highlight">${match}</span>`);
+            }
+          });
+          return result;
+        }
+        
+        let result = text;
+        
+        // 高亮显示 AND 关键词（橙色）
+        allKeywords.forEach(keyword => {
+          if (keyword.trim()) {
+            const regex = new RegExp(keyword, 'gi');
+            result = result.replace(regex, match => `<span class="highlight">${match}</span>`);
+          }
+        });
+        
+        // 高亮显示 OR 关键词（绿色）
+        orKeywords.forEach(keyword => {
+          if (keyword.trim()) {
+            const regex = new RegExp(keyword, 'gi');
+            result = result.replace(regex, match => `<span class="highlight-or">${match}</span>`);
+          }
+        });
+        
+        return result;
+      },
+      searchPage(isNewSearch = false){
+        this.hasSearched = true;
+        this.advancedSearch.allKeywords = "";
+        this.advancedSearch.orKeywords = "";
+        this.advancedSearch.notKeywords = "";
+        if (isNewSearch && this.currentPage !== 1) {
+          this.currentPage = 1;
+        }
+        this.resultType = this.searchType;
+        
+        axios.request({
+            method: "POST",
+            url: this.searchType === "question" ? "http://localhost:8080/queryse" : "http://localhost:8080/queryse/answer",
+            params:{
+              keyword:this.keyword,
+              pageNo:this.currentPage,
+              pageSize:this.pageSize
+            }
+        }).then(response=>{
+          if (response.data && response.data.length > 0) {
+            this.results = response.data[0].content || [];
+            this.totalResults = response.data[0].total || 0;
+            console.log(this.totalResults);
+            console.log(JSON.stringify(this.results));
+          } else {
+            this.results = [];
+            this.totalResults = 0;
+          }
+          // 关闭高级搜索弹窗
+          this.closeModal();
+        }).catch(error => {
+          console.error('搜索出错:', error);
+          this.results = [];
+          this.totalResults = 0;
+        });
+      },
+      searchId(qid){
+        window.open("http://localhost:8080/searchAn/"+qid, "_blank");
+      },
+      searchAnswerId(aid){
+        window.open("http://localhost:8080/justAnswer/"+aid, "_blank");
+      },
+      changePage(page) {
+        this.currentPage = page;
+        this.searchPage(false);
+      },
+      showAdvancedSearch() {
+        this.showModal = true;
+        // 防止点击事件冒泡
+        event.stopPropagation();
+      },
+      closeModal() {
+        this.showModal = false;
+
+      },
+      advancedSearchSubmit() {
+        this.hasSearched = true;
+        this.currentPage = 1;
+        this.keyword = "";
+        this.resultType = this.searchType;
+        this.closeModal();
+        axios.request({
+          method: "POST",
+          url: this.resultType === "question" ? "http://localhost:8080/advancedSearch" : "http://localhost:8080/advancedSearch/answer",
+          params: {
+            allKeywords: this.advancedSearch.allKeywords,
+            orKeywords: this.advancedSearch.orKeywords,
+            notKeywords: this.advancedSearch.notKeywords,
+            pageNo: this.currentPage,
+            pageSize: this.pageSize
+          }
+        }).then(response => {
+          if (response.data && response.data.length > 0) {
+            this.results = response.data[0].content || [];
+            this.totalResults = response.data[0].total || 0;
+          } else {
+            this.results = [];
+            this.totalResults = 0;
+          } 
+
+          // 关闭高级搜索弹窗
+        }).catch(error => {
+          console.error('高级搜索出错:', error);
+          this.results = [];
+          this.totalResults = 0;
+        });
+      },
+      handleEnterKey() {
+        if (this.showModal) {
+          this.advancedSearchSubmit();
+        } else {
+          this.searchPage(true);
+        }
+      }
+    }
+  })
+</script>
+</body>
+</html>

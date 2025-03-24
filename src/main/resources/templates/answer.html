@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <title>问题及答案</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background-color: #f8f9fa;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: #fff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .header {
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #eee;
+    }
+    .question-id {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    .question-type {
+      display: inline-block;
+      background-color: #e8f0fe;
+      color: #1a73e8;
+      padding: 4px 12px;
+      border-radius: 16px;
+      font-size: 14px;
+      margin-bottom: 15px;
+    }
+    .question {
+      font-size: 24px;
+      color: #202124;
+      margin-bottom: 20px;
+      line-height: 1.4;
+    }
+    .question-en {
+      color: #5f6368;
+      font-size: 16px;
+      margin-bottom: 30px;
+      font-style: italic;
+    }
+    .divider {
+      height: 1px;
+      background-color: #eee;
+      margin: 30px 0;
+    }
+    .answer {
+      font-size: 18px;
+      color: #202124;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+    .answer-en {
+      color: #5f6368;
+      font-size: 16px;
+      margin-bottom: 15px;
+      font-style: italic;
+    }
+    .answer-id {
+      color: #666;
+      font-size: 14px;
+    }
+    .back-button {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 8px 16px;
+      background-color: #1a73e8;
+      color: white;
+      text-decoration: none;
+      border-radius: 4px;
+      font-size: 14px;
+      transition: background-color 0.2s;
+    }
+    .back-button:hover {
+      background-color: #1557b0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="question-id" th:text="'问题序号: ' + ${qid}"></div>
+      <div class="question-type" th:text="${qdomain}"></div>
+      <div class="question" th:text="${qzh}"></div>
+      <div class="question-en" th:text="${qen}"></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="answer-section">
+      <div class="answer" th:text="${azh}"></div>
+      <div class="answer-en" th:text="${aen}"></div>
+      <div class="answer-id" th:text="'答案序号: ' + ${aid}"></div>
+    </div>
+
+    <a href="/contentse" class="back-button">返回搜索结果</a>
+  </div>
+</body>
+</html>
