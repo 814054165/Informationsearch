@@ -15,7 +15,9 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.*;
-import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
+import org.elasticsearch.index.query.functionscore.*;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -25,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.AnalyzeResponse;
+import java.util.stream.Collectors;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,7 +38,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import com.example.demo.utils.HtmlParseUtil;
-
 
 @Service
 public class ContentService {
@@ -50,6 +52,7 @@ public class ContentService {
     public static final String GOODS_INDEX = "goods";
     public static final String COLLECTIONS_INDEX = "collections";
     public static final String THU_BOOKS_INDEX = "thu_books";
+
     // 1、解析数据放到 es 中
     public boolean parseContent(String keyword) throws IOException {
         List<Content> contents = new HtmlParseUtil().parseThu(keyword);
@@ -253,7 +256,6 @@ public class ContentService {
             tokens.add(token.getTerm());
         }
 
-
         if (tokens.size() <= 1) {
             MatchQueryBuilder matchQuery = QueryBuilders.matchQuery("qzh", keyword);
             sourceBuilder.query(matchQuery);
@@ -298,7 +300,6 @@ public class ContentService {
             tokens.add(token.getTerm());
         }
 
-
         if (tokens.size() <= 1) {
             MatchQueryBuilder matchQuery = QueryBuilders.matchQuery("qzh", keyword);
             sourceBuilder.query(matchQuery);
@@ -331,13 +332,133 @@ public class ContentService {
         return executeSearch(searchRequest, sourceBuilder);
     }
 
+    // 基于ScriptScore的改进
+    public List<Map<String, Object>> searchQAByImproveSC(String keyword, int pageNo, int pageSize) throws IOException {
+        // 参数校验
+        pageNo = Math.max(pageNo, 1);
+        pageSize = Math.max(pageSize, 1);
+
+        SearchRequest searchRequest = new SearchRequest(QUESTION_INDEX);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
+                .from((pageNo - 1) * pageSize)
+                .size(pageSize)
+                .timeout(new TimeValue(30, TimeUnit.SECONDS));
+
+        // 1. 分词处理
+        List<String> tokens;
+        try {
+            AnalyzeRequest request = AnalyzeRequest.withGlobalAnalyzer("ik_smart", keyword);
+            AnalyzeResponse response = client.indices().analyze(request, RequestOptions.DEFAULT);
+            tokens = response.getTokens().stream()
+                    .map(AnalyzeResponse.AnalyzeToken::getTerm)
+                    .filter(token -> token.length() > 1)
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            System.err.println("IK分词失败，使用降级策略: " + e.getMessage());
+            sourceBuilder.query(QueryBuilders.matchQuery("qzh", keyword));
+            return executeSearch(searchRequest, sourceBuilder);
+        }
+
+        // 2. 查询构建
+        if (tokens.isEmpty()) {
+            // 随机搜索
+            sourceBuilder.query(QueryBuilders.functionScoreQuery(
+                    QueryBuilders.matchAllQuery(),
+                    new RandomScoreFunctionBuilder().seed(System.currentTimeMillis())));
+        } else {
+            // 动态组合查询
+            BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
+            // 首词短语匹配
+            boolQuery.should(QueryBuilders.matchPhraseQuery("qzh", tokens.get(0)).boost(3f));
+            // 其他词组合匹配
+            if (tokens.size() > 1) {
+                String remaining = String.join(" ", tokens.subList(1, tokens.size()));
+                boolQuery.should(QueryBuilders.matchPhraseQuery("qzh", remaining).boost(1.5f));
+            }
+            // 全词匹配兜底
+            boolQuery.should(QueryBuilders.matchQuery("qzh", String.join(" ", tokens)));
+            sourceBuilder.query(boolQuery);
+        }
+
+        // 3. 执行搜索
+        return executeSearch(searchRequest, sourceBuilder);
+    }
+
+    // 理想很好但是目前无法实现
+    public List<Map<String, Object>> searchQAByFieldValueFactor(String keyword, int pageNo, int pageSize)
+            throws IOException {
+        // 分页参数校验
+        if (pageNo <= 1)
+            pageNo = 1;
+        if (pageSize <= 1)
+            pageSize = 1;
+
+        SearchRequest searchRequest = new SearchRequest(QUESTION_INDEX);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+
+        // 分页设置
+        sourceBuilder.from((pageNo - 1) * pageSize).size(pageSize);
+
+        // 基础查询条件
+        BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
+
+        // 关键词匹配
+        String[] keyword_buff = keyword.trim().split(" ");
+        if (keyword_buff.length <= 1) {
+            boolQuery.must(QueryBuilders.matchQuery("qzh", keyword));
+        } else {
+            MatchQueryBuilder matchQuery1 = QueryBuilders.matchQuery("qzh", keyword_buff[0]);
+            matchQuery1.boost(2);
+
+            String keyword_left = keyword_buff[1];
+            for (int i = 2; i < keyword_buff.length; i++) {
+                keyword_left = " " + keyword_buff[i];
+            }
+            MatchQueryBuilder matchQuery2 = QueryBuilders.matchQuery("qzh", keyword_left);
+            boolQuery.should(matchQuery1).should(matchQuery2);
+        }
+
+        // 使用 Field Value Factor 评分
+        FieldValueFactorFunctionBuilder fieldValueFactor = ScoreFunctionBuilders
+                .fieldValueFactorFunction("popularity") // 假设 popularity 是一个字段，表示受欢迎程度
+                .factor(1.2f) // 权重因子
+                .modifier(FieldValueFactorFunction.Modifier.LOG1P) // 使用 log(1 + popularity) 计算
+                .missing(1); // 如果字段缺失，默认值为 1
+
+        // 将 Field Value Factor 添加到 Function Score Query
+        FunctionScoreQueryBuilder functionScoreQuery = QueryBuilders.functionScoreQuery(
+                boolQuery, // 基础查询
+                fieldValueFactor // 评分函数
+        ).boostMode(CombineFunction.MULTIPLY); // 评分计算方式（相乘）
+
+        sourceBuilder.query(functionScoreQuery);
+
+        // 如果不使用 Field Value Factor，直接使用基础查询
+        // sourceBuilder.query(boolQuery);
+
+        // 设置超时时间
+        sourceBuilder.timeout(new TimeValue(60, TimeUnit.SECONDS));
+
+        // 执行搜索
+        SearchResponse searchResponse = client.search(searchRequest.source(sourceBuilder), RequestOptions.DEFAULT);
+
+        // 解析结果
+        List<Map<String, Object>> list = new ArrayList<>();
+        for (SearchHit documentFields : searchResponse.getHits().getHits()) {
+            list.add(documentFields.getSourceAsMap());
+        }
+        return list;
+    }
+
     // 主搜索函数，默认使用BM25算法
     public List<Map<String, Object>> searchQA(String keyword, int pageNo, int pageSize) throws IOException {
         // searchQAByBM25
         // searchQAByBoost
         // searchQAByBoosting
         // searchQAByScriptScore
-        return searchQAByBoost(keyword, pageNo, pageSize);
+        // searchQAByImproveSC
+        // searchQAByFieldValueFactore
+        return searchQAByImproveSC(keyword, pageNo, pageSize);
     }
 
     public List<Map<String, Object>> searchAnswer(String qid) throws IOException {
@@ -347,28 +468,21 @@ public class ContentService {
 
         // 精准匹配
         TermQueryBuilder termQuery = QueryBuilders.termQuery("qid", qid);
-        // TermQueryBuilder matchQuery = QueryBuilders.termQuery("qid", qid);
-
         sourceBuilder.query(termQuery);
-        // sourceBuilder.query(matchQuery);
         sourceBuilder.timeout(new TimeValue(60, TimeUnit.SECONDS));
-        // 执行搜索
         SearchRequest source = searchRequest.source(sourceBuilder);
         SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
-        // 解析结果
 
         List<Map<String, Object>> list = new ArrayList<>();
         for (SearchHit documentFields : searchResponse.getHits().getHits()) {
             list.add(documentFields.getSourceAsMap());
         }
 
-        //
         List<Map<String, Object>> list2 = new ArrayList<>();
         String qdomain = "";
         String qzh = "";
         String qen = "";
         String qanswers = "";
-        String aid = "";
         if (!list.isEmpty()) {
             // 条件搜索answer
             searchRequest = new SearchRequest(ANSWER_INDEX);
@@ -376,37 +490,36 @@ public class ContentService {
             qzh = (String) list.get(0).get("qzh");
             qen = (String) list.get(0).get("qen");
             qanswers = (String) list.get(0).get("qanswers");
-            String[] temp;
-            temp = qanswers.split("\"");
-            aid = temp[1];
-            // 精准匹配
-            termQuery = QueryBuilders.termQuery("aid", aid);
-            // TermQueryBuilder matchQuery = QueryBuilders.termQuery("qid", qid);
+            String[] temp = qanswers.split("\"");
 
-            sourceBuilder.query(termQuery);
-            // sourceBuilder.query(matchQuery);
-            sourceBuilder.timeout(new TimeValue(60, TimeUnit.SECONDS));
-            // 执行搜索
-            source = searchRequest.source(sourceBuilder);
-            searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
-            // 解析结果
+            // 遍历所有aid并搜索对应的答案
+            for (int i = 1; i < temp.length; i += 2) {
+                String aid = temp[i];
+                termQuery = QueryBuilders.termQuery("aid", aid);
+                sourceBuilder.query(termQuery);
+                sourceBuilder.timeout(new TimeValue(60, TimeUnit.SECONDS));
+                source = searchRequest.source(sourceBuilder);
+                searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
 
-            for (SearchHit documentFields : searchResponse.getHits().getHits()) {
-                list2.add(documentFields.getSourceAsMap());
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    Map<String, Object> answerMap = hit.getSourceAsMap();
+                    Map<String, Object> filteredMap = new HashMap<>();
+                    filteredMap.put("aid", answerMap.get("aid"));
+                    filteredMap.put("azh", answerMap.get("azh"));
+                    filteredMap.put("aen", answerMap.get("aen"));
+                    list2.add(filteredMap);
+                }
             }
         }
-        ;
-        List<Map<String, Object>> list3 = new ArrayList<>();
 
+        List<Map<String, Object>> list3 = new ArrayList<>();
         if (!list2.isEmpty()) {
             Map<String, Object> map1 = new HashMap<String, Object>();
             map1.put("qid", qid);
             map1.put("qdomain", qdomain);
             map1.put("qzh", qzh);
             map1.put("qen", qen);
-            map1.put("aid", (String) list2.get(0).get("aid"));
-            map1.put("azh", (String) list2.get(0).get("azh"));
-            map1.put("aen", (String) list2.get(0).get("aen"));
+            map1.put("answerList", list2); // 将答案列表作为一个元素添加
             list3.add(map1);
         }
 
@@ -642,7 +755,6 @@ public class ContentService {
             tokens.add(token.getTerm());
         }
 
-
         if (tokens.size() <= 1) {
             MatchQueryBuilder matchQuery = QueryBuilders.matchQuery("azh", keyword);
             sourceBuilder.query(matchQuery);
@@ -719,13 +831,67 @@ public class ContentService {
         return executeSearch(searchRequest, sourceBuilder);
     }
 
+    // 基于ScriptScore的改进
+    public List<Map<String, Object>> searchAnswerByImproveSC(String keyword, int pageNo, int pageSize)
+            throws IOException {
+        // 参数校验
+        pageNo = Math.max(pageNo, 1);
+        pageSize = Math.max(pageSize, 1);
+
+        SearchRequest searchRequest = new SearchRequest(ANSWER_INDEX);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
+                .from((pageNo - 1) * pageSize)
+                .size(pageSize)
+                .timeout(new TimeValue(30, TimeUnit.SECONDS));
+
+        // 1. 分词处理
+        List<String> tokens;
+        try {
+            AnalyzeRequest request = AnalyzeRequest.withGlobalAnalyzer("ik_smart", keyword);
+            AnalyzeResponse response = client.indices().analyze(request, RequestOptions.DEFAULT);
+            tokens = response.getTokens().stream()
+                    .map(AnalyzeResponse.AnalyzeToken::getTerm)
+                    .filter(token -> token.length() > 1)
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            System.err.println("IK分词失败，使用降级策略: " + e.getMessage());
+            sourceBuilder.query(QueryBuilders.matchQuery("azh", keyword));
+            return executeSearch(searchRequest, sourceBuilder);
+        }
+
+        // 2. 查询构建
+        if (tokens.isEmpty()) {
+            // 随机搜索
+            sourceBuilder.query(QueryBuilders.functionScoreQuery(
+                    QueryBuilders.matchAllQuery(),
+                    new RandomScoreFunctionBuilder().seed(System.currentTimeMillis())));
+        } else {
+            // 动态组合查询
+            BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
+            // 首词短语匹配
+            boolQuery.should(QueryBuilders.matchPhraseQuery("azh", tokens.get(0)).boost(3f));
+            // 其他词组合匹配
+            if (tokens.size() > 1) {
+                String remaining = String.join(" ", tokens.subList(1, tokens.size()));
+                boolQuery.should(QueryBuilders.matchPhraseQuery("azh", remaining).boost(1.5f));
+            }
+            // 全词匹配兜底
+            boolQuery.should(QueryBuilders.matchQuery("azh", String.join(" ", tokens)));
+            sourceBuilder.query(boolQuery);
+        }
+
+        // 3. 执行搜索
+        return executeSearch(searchRequest, sourceBuilder);
+    }
+
     // 主答案搜索函数，默认使用BM25算法
     public List<Map<String, Object>> searchByAnswer(String keyword, int pageNo, int pageSize) throws IOException {
         // searchAnswerByBM25
         // searchAnswerByBoost
         // searchAnswerByBoosting
         // searchAnswerByScriptScore
-        return searchAnswerByBoost(keyword, pageNo, pageSize);
+        // searchAnswerByImproveSC
+        return searchAnswerByImproveSC(keyword, pageNo, pageSize);
     }
 
     public List<Map<String, Object>> justAnswer(String aid) throws IOException {
@@ -757,15 +923,21 @@ public class ContentService {
             if (questionResponse.getHits().getHits().length > 0) {
                 Map<String, Object> questionMap = questionResponse.getHits().getHits()[0].getSourceAsMap();
 
+                // 构建答案列表
+                List<Map<String, Object>> answerList = new ArrayList<>();
+                Map<String, Object> filteredAnswerMap = new HashMap<>();
+                filteredAnswerMap.put("aid", answerMap.get("aid"));
+                filteredAnswerMap.put("azh", answerMap.get("azh"));
+                filteredAnswerMap.put("aen", answerMap.get("aen"));
+                answerList.add(filteredAnswerMap);
+
                 // 构建包含所有需要字段的结果
                 Map<String, Object> resultMap = new HashMap<>();
                 resultMap.put("qid", questionMap.get("qid"));
+                resultMap.put("qdomain", questionMap.get("qdomain"));
                 resultMap.put("qzh", questionMap.get("qzh"));
                 resultMap.put("qen", questionMap.get("qen"));
-                resultMap.put("qdomain", questionMap.get("qdomain"));
-                resultMap.put("aid", answerMap.get("aid"));
-                resultMap.put("azh", answerMap.get("azh"));
-                resultMap.put("aen", answerMap.get("aen"));
+                resultMap.put("answerList", answerList);
 
                 result.add(resultMap);
             }

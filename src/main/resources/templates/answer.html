@@ -100,9 +100,11 @@
     <div class="divider"></div>
 
     <div class="answer-section">
-      <div class="answer" th:text="${azh}"></div>
-      <div class="answer-en" th:text="${aen}"></div>
-      <div class="answer-id" th:text="'答案序号: ' + ${aid}"></div>
+      <div th:each="answer : ${answerList}" class="answer-item">
+        <div class="answer" style="white-space: pre-line;"  th:text="${answer.azh}"></div>
+        <div class="answer-en" th:text="${answer.aen}"></div>
+        <div class="answer-id" th:text="'答案序号: ' + ${answer.aid}"></div>
+      </div>
     </div>
 
     <a href="/contentse" class="back-button">返回搜索结果</a>

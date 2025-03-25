@@ -1,6 +1,5 @@
 package com.example.demo.controller;
 
-
 import com.example.demo.EsDoc;
 
 import com.example.demo.service.ContentService;
@@ -15,7 +14,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-
 //@RestController
 @Controller
 
@@ -24,23 +22,23 @@ public class HelloController {
     @Autowired
     private ContentService contentService2;
 
-    @GetMapping({"/","index"})
-    public String index(){
+    @GetMapping({ "/", "index" })
+    public String index() {
         return "index";
     }
+
     @GetMapping("/jdsearch")
-    public String hello2(Model model){
+    public String hello2(Model model) {
         return "jdsearch";
     }
 
     @GetMapping("/contentse")
-    public String se(Model model){
+    public String se(Model model) {
         return "se";
     }
 
     @GetMapping("/searchAn/{aid}")
-    public String parsese(Model model, @PathVariable("aid") String aid) throws IOException, IOException {
-
+    public String parsese(Model model, @PathVariable("aid") String aid) throws IOException {
         System.out.println(aid);
         List<Map<String, Object>> list = contentService2.searchAnswer(aid);
 
@@ -48,13 +46,11 @@ public class HelloController {
         model.addAttribute("qzh", (String) list.get(0).get("qzh"));
         model.addAttribute("qen", (String) list.get(0).get("qen"));
         model.addAttribute("qdomain", (String) list.get(0).get("qdomain"));
-        model.addAttribute("aid", (String) list.get(0).get("aid"));
-        model.addAttribute("azh", (String) list.get(0).get("azh"));
-        model.addAttribute("aen", (String) list.get(0).get("aen"));
+        model.addAttribute("answerList", (List<Map<String, Object>>) list.get(0).get("answerList"));
 
         return "answer";
     }
-    
+
     @GetMapping("/justAnswer/{aid}")
     public String justAnswer(Model model, @PathVariable("aid") String aid) throws IOException {
         List<Map<String, Object>> list = contentService2.justAnswer(aid);
@@ -63,15 +59,13 @@ public class HelloController {
         model.addAttribute("qzh", (String) list.get(0).get("qzh"));
         model.addAttribute("qen", (String) list.get(0).get("qen"));
         model.addAttribute("qdomain", (String) list.get(0).get("qdomain"));
-        model.addAttribute("aid", (String) list.get(0).get("aid"));
-        model.addAttribute("azh", (String) list.get(0).get("azh"));
-        model.addAttribute("aen", (String) list.get(0).get("aen"));
-
+        model.addAttribute("answerList", (List<Map<String, Object>>) list.get(0).get("answerList"));
         return "answer";
     }
+
     @GetMapping("/hello")
-    public String hello(Model model){
-        model.addAttribute("hello","hello welcome");
+    public String hello(Model model) {
+        model.addAttribute("hello", "hello welcome");
         return "test";
     }
 
@@ -79,8 +73,8 @@ public class HelloController {
     @ResponseBody
     public String handle01() throws IOException {
         String str;
-        str=EsDoc.searchDoc();
-        return str+"\nHello, Spring Boot2!";
+        str = EsDoc.searchDoc();
+        return str + "\nHello, Spring Boot2!";
 
     }
 
