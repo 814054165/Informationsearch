@@ -589,33 +589,109 @@
         // 如果没有高级搜索关键词，则使用普通搜索关键词
         if (allKeywords.length === 0 && orKeywords.length === 0 && notKeywords.length === 0) {
           if (!this.keyword) return text;
-          const keywords = this.keyword.split('');
-          let result = text;
+          
+          // 分词处理
+          const keywords = this.keyword.trim().split(/\s+/);
+          if (keywords.length === 0) return text;
+          
+          // 收集所有需要替换的位置
+          const replacements = [];
           keywords.forEach(keyword => {
-            if (keyword.trim()) {
+            if (keyword.length > 1) { // 忽略单字符
               const regex = new RegExp(keyword, 'gi');
-              result = result.replace(regex, match => `<span class="highlight">${match}</span>`);
+              let match;
+              while ((match = regex.exec(text)) !== null) {
+                // 检查是否已经存在重叠的替换
+                const isOverlap = replacements.some(r => 
+                  (match.index >= r.start && match.index < r.end) ||
+                  (match.index + match[0].length > r.start && match.index < r.end)
+                );
+                
+                if (!isOverlap) {
+                  replacements.push({
+                    start: match.index,
+                    end: match.index + match[0].length,
+                    text: match[0],
+                    keyword: keyword
+                  });
+                }
+              }
             }
+          });
+          
+          // 按照位置从后向前排序，避免替换影响索引
+          replacements.sort((a, b) => b.start - a.start);
+          
+          // 一次性进行所有替换
+          let result = text;
+          replacements.forEach(replacement => {
+            result = result.substring(0, replacement.start) + 
+                    `<span class="highlight">${replacement.text}</span>` + 
+                    result.substring(replacement.end);
           });
           return result;
         }
         
+        // 高级搜索模式
         let result = text;
+        const allReplacements = [];
         
-        // 高亮显示 AND 关键词（橙色）
+        // 收集 AND 关键词的替换位置
         allKeywords.forEach(keyword => {
           if (keyword.trim()) {
             const regex = new RegExp(keyword, 'gi');
-            result = result.replace(regex, match => `<span class="highlight">${match}</span>`);
+            let match;
+            while ((match = regex.exec(text)) !== null) {
+              allReplacements.push({
+                start: match.index,
+                end: match.index + match[0].length,
+                text: match[0],
+                type: 'and'
+              });
+            }
           }
         });
         
-        // 高亮显示 OR 关键词（绿色）
+        // 收集 OR 关键词的替换位置
         orKeywords.forEach(keyword => {
           if (keyword.trim()) {
             const regex = new RegExp(keyword, 'gi');
-            result = result.replace(regex, match => `<span class="highlight-or">${match}</span>`);
+            let match;
+            while ((match = regex.exec(text)) !== null) {
+              allReplacements.push({
+                start: match.index,
+                end: match.index + match[0].length,
+                text: match[0],
+                type: 'or'
+              });
+            }
           }
+        });
+        
+        // 移除重叠的替换，优先保留 AND 关键词
+        const finalReplacements = allReplacements
+          .sort((a, b) => {
+            // 首先按类型排序（AND 优先）
+            if (a.type !== b.type) return a.type === 'and' ? -1 : 1;
+            // 然后按位置排序
+            return a.start - b.start;
+          })
+          .filter((replacement, index, self) => {
+            return !self.some((r, i) => 
+              i < index && 
+              ((replacement.start >= r.start && replacement.start < r.end) ||
+               (replacement.end > r.start && replacement.start < r.end))
+            );
+          });
+        
+        // 按照位置从后向前排序，避免替换影响索引
+        finalReplacements.sort((a, b) => b.start - a.start);
+        
+        // 一次性进行所有替换
+        finalReplacements.forEach(replacement => {
+          result = result.substring(0, replacement.start) + 
+                  `<span class="highlight${replacement.type === 'or' ? '-or' : ''}">${replacement.text}</span>` + 
+                  result.substring(replacement.end);
         });
         
         return result;

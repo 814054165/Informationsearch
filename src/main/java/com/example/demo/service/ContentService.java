@@ -211,7 +211,7 @@ public class ContentService {
         for (AnalyzeResponse.AnalyzeToken token : response.getTokens()) {
             tokens.add(token.getTerm());
         }
-
+        System.out.println(tokens);
         if (tokens.size() <= 1) {
             MatchQueryBuilder matchQuery = QueryBuilders.matchQuery("qzh", keyword);
             sourceBuilder.query(matchQuery);
@@ -458,7 +458,7 @@ public class ContentService {
         // searchQAByScriptScore
         // searchQAByImproveSC
         // searchQAByFieldValueFactore
-        return searchQAByImproveSC(keyword, pageNo, pageSize);
+        return searchQAByBoost(keyword, pageNo, pageSize);
     }
 
     public List<Map<String, Object>> searchAnswer(String qid) throws IOException {
@@ -581,7 +581,7 @@ public class ContentService {
             String[] keywords = allKeywords.trim().split("\\s+");
             for (String keyword : keywords) {
                 if (!keyword.isEmpty()) {
-                    boolQuery.must(QueryBuilders.matchQuery("qzh", keyword));
+                    boolQuery.must(QueryBuilders.matchQuery("qzh", keyword).operator(Operator.AND));
                 }
             }
         }
@@ -591,7 +591,7 @@ public class ContentService {
             String[] keywords = orKeywords.trim().split("\\s+");
             for (String keyword : keywords) {
                 if (!keyword.isEmpty()) {
-                    boolQuery.should(QueryBuilders.matchQuery("qzh", keyword));
+                    boolQuery.should(QueryBuilders.matchQuery("qzh", keyword).operator(Operator.OR));
                 }
             }
         }
